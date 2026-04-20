@@ -61,8 +61,12 @@ def run_testimony(req: TestimonyRequest) -> Dict[str, Any]:
             
             # 1. Definir editores (incluyendo SIEMPRE a esta Service Account para no perder acceso)
             editors = []
-            if settings.service_account_email:
-                editors.append(settings.service_account_email)
+            sa_email = settings.service_account_email
+            if sa_email:
+                logger.info(f"🔑 Incluyendo SA '{sa_email}' como editor en ForgeDocs.")
+                editors.append(sa_email)
+            else:
+                logger.warning("⚠️ No se pudo determinar el email de la SA. ForgeDocs podría no compartir el doc correctamente.")
             
             if req.extra and "client_email" in req.extra:
                 editors.append(req.extra["client_email"])

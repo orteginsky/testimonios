@@ -57,7 +57,32 @@ class Settings(BaseModel):
     )
     
     # --- Service Account / Auth ---
-    service_account_email: str = os.getenv("SERVICE_ACCOUNT_EMAIL", "")
+    _service_account_email: str = os.getenv("SERVICE_ACCOUNT_EMAIL", "")
+
+    @property
+    def service_account_email(self) -> str:
+        """Devuelve el email de la SA, intentando autodescubrimiento si no está definido."""
+        if self._service_account_email:
+            return self._service_account_email
+        
+        # Intento de autodescubrimiento en GCP (Metadata Server)
+        try:
+            import httpx
+            # Timeout corto para no bloquear si no estamos en GCP
+            resp = httpx.get(
+                "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/email",
+                headers={"Metadata-Flavor": "Google"},
+                timeout=1.0
+            )
+            if resp.status_code == 200:
+                discovered = resp.text.strip()
+                # Cacheamos el resultado en la instancia
+                self._service_account_email = discovered
+                return discovered
+        except Exception:
+            pass
+        
+        return ""
     # Solo LOCAL: ruta al JSON de la SA. En Cloud Run usa ADC (sin llaves).
     sa_credentials_path: Optional[str] = os.getenv("GOOGLE_APPLICATION_CREDENTIALS") or None
 
