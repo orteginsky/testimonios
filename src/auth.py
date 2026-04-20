@@ -22,10 +22,19 @@ logger = get_logger(__name__)
 
 # --- SCOPES GLOBALES ---
 # --- SCOPES GLOBALES ---
-DRIVE_SCOPES = ("https://www.googleapis.com/auth/drive",)
-DOCS_SCOPES = ("https://www.googleapis.com/auth/documents",)
-SHEETS_SCOPES = ("https://www.googleapis.com/auth/spreadsheets",)
-VERTEX_SCOPE = ("https://www.googleapis.com/auth/cloud-platform",)
+DRIVE_SCOPES = (
+    "https://www.googleapis.com/auth/drive",
+    "https://www.googleapis.com/auth/drive.file",
+)
+DOCS_SCOPES = (
+    "https://www.googleapis.com/auth/documents",
+)
+SHEETS_SCOPES = (
+    "https://www.googleapis.com/auth/spreadsheets",
+)
+VERTEX_SCOPE = (
+    "https://www.googleapis.com/auth/cloud-platform",
+)
 
 # ✅ Fusión de todos los scopes
 WORKSPACE_SCOPES = tuple(sorted(set(DRIVE_SCOPES + DOCS_SCOPES + SHEETS_SCOPES + VERTEX_SCOPE)))
@@ -39,8 +48,9 @@ def _scopes_tuple(scopes: Optional[Iterable[str]]) -> Tuple[str, ...]:
 def _from_service_account_file(path: str, scopes: Tuple[str, ...]) -> SACredentials:
     if not os.path.exists(path):
         raise FileNotFoundError(f"No se encontró el archivo de credenciales: {path}")
-    logger.debug(f"Usando Service Account JSON: {path}")
-    return SACredentials.from_service_account_file(path, scopes=list(scopes))
+    creds = SACredentials.from_service_account_file(path, scopes=list(scopes))
+    logger.info(f"🔑 Usando Service Account JSON: {path} (Email: {creds.service_account_email})")
+    return creds
 
 def _adc_credentials(scopes: Tuple[str, ...]) -> BaseCredentials:
     creds, _ = google.auth.default(scopes=list(scopes))
@@ -68,23 +78,9 @@ def build_drive_client():
 # src/auth.py
 @lru_cache(maxsize=4)
 def build_docs_client():
-    from google_auth_httplib2 import AuthorizedHttp
-    import httplib2
-    import certifi
-    from googleapiclient.discovery import build
-
     creds = get_workspace_credentials(WORKSPACE_SCOPES)
     logger.info("📄 Cliente Docs inicializado (cacheado).")
-
-    base_http = httplib2.Http(
-        timeout=180,  # subimos a 180s
-        ca_certs=certifi.where(),  # CA actualizadas
-        disable_ssl_certificate_validation=False,
-    )
-    authed_http = AuthorizedHttp(creds, http=base_http)
-
-    # NO mezclar credentials= con http=
-    return build("docs", "v1", http=authed_http, cache_discovery=False)
+    return build("docs", "v1", credentials=creds, cache_discovery=False)
 
 
 @lru_cache(maxsize=4)
@@ -92,6 +88,7 @@ def build_sheets_client():
     creds = get_workspace_credentials(WORKSPACE_SCOPES)
     logger.info("📊 Cliente Sheets inicializado (cacheado).")
     return build("sheets", "v4", credentials=creds, cache_discovery=False)
+
 
 # --- VERTEX AI ---
 @lru_cache(maxsize=1)

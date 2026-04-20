@@ -27,7 +27,7 @@ steps:
       - 'drive-sheets@ortega-473114.iam.gserviceaccount.com'
       - '--allow-unauthenticated'
       - '--set-env-vars'
-      - 'LLM_BACKEND=vertex,VERTEX_LOCATION=us-central1,VERTEX_MODEL=gemini-2.5-pro,DEFAULT_LANGUAGE=es,LOG_LEVEL=INFO,LOG_FORMAT=json,LOG_INCLUDE_PII=false,PROMPTS_DIR=/app/src/domain/prompts,GOOGLE_CLOUD_PROJECT=$PROJECT_ID,SERVICE_ACCOUNT_EMAIL=drive-sheets@ortega-473114.iam.gserviceaccount.com,EXTRA_EDITOR_EMAILS=docs-writer-sa@ortega-473114.iam.gserviceaccount.com'
+      - 'LLM_BACKEND=vertex,VERTEX_LOCATION=us-central1,VERTEX_MODEL=gemini-2.5-flash,DEFAULT_LANGUAGE=es,LOG_LEVEL=INFO,LOG_FORMAT=json,LOG_INCLUDE_PII=false,PROMPTS_DIR=/app/src/domain/prompts,GOOGLE_CLOUD_PROJECT=$PROJECT_ID,SERVICE_ACCOUNT_EMAIL=drive-sheets@ortega-473114.iam.gserviceaccount.com,EXTRA_EDITOR_EMAILS=docs-writer-sa@ortega-473114.iam.gserviceaccount.com,DEFAULT_PARENT_FOLDER_ID=1wpPCQCqXlHmWTCe0aUe9-P1LlR2sjNAQ'
 
 images:
   - 'us-central1-docker.pkg.dev/$PROJECT_ID/ai/testimonios:$BUILD_ID'
