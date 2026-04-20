@@ -31,7 +31,8 @@ Opera con **Service Account (SA)** usando **ADC/Workload Identity** en Cloud Run
 
   * **Cloud Run**: ADC vía identidad del servicio (sin subir llaves).
   * **Local**: opcional `GOOGLE_APPLICATION_CREDENTIALS` apuntando a un JSON de SA.
-* **Docs/Drive**: la SA **no crea** documentos (0 GB). Siempre **escribe en un Doc existente** que debe estar **compartido con editor** a la SA.
+* **Docs/Drive (Smart Reader)**: Soporta tanto Google Docs nativos como archivos de Microsoft Word (** .docx **). Utiliza un patrón de diseño **Strategy** para extraer texto de forma óptima según el formato.
+* **Creación Automática via ForgeDocs**: Si `output_doc_id` no se provee, el servicio llama automáticamente al microservicio **ForgeDocs** para crear uno nuevo en la carpeta configurada y asigna permisos de edición a la SA.
 * **Vertex AI**: modelos Gemini vía `vertexai`, con rol `aiplatform.user`.
 * **Plantillas**: se usan desde `src/domain/prompts`. Si no se provee una, hay *fallback prompt*.
 * **Encadenamiento automático**: soporta webhooks para integrarse con otros servicios (ej: Transcriptor).
@@ -88,12 +89,22 @@ Health básico (sin tocar Google APIs).
 ### `GET /health/sa?doc_id=...`
 
 Prueba completa: credenciales + Google Docs/Drive + Vertex.
+Detecta automáticamente el tipo de archivo (`doc` o `docx`) y realiza la prueba pertinente:
+* **Google Doc**: Prueba de escritura reversible (insert + delete).
+* **Archivo .docx**: Prueba de lectura de texto (download + extract).
+
 Si no pasas `doc_id`, usa `HEALTHCHECK_DOC_ID` del entorno.
 
 #### Respuesta OK
 
 ```json
-{ "status": "ok", "doc_id": "1xxxxx", "write_probe": "ok", "vertex": "ok" }
+{ 
+  "status": "ok", 
+  "doc_id": "1xxxxx", 
+  "strategy": "GoogleDocStrategy|WordDocStrategy",
+  "operation_test": "write_reversible_ok|read_ok", 
+  "vertex": "ok" 
+}
 ```
 
 #### Errores comunes
@@ -109,12 +120,13 @@ Genera el testimonio y lo **escribe** en un **Google Doc existente**.
 Reglas de precedencia de fuente:
 
 1. `raw_text` (usa tal cual, sin inventar),
-2. `transcription_doc_id`,
+2. `transcription_doc_id` (**Soporta .doc y .docx**),
 3. `transcription_link` → se extrae `doc_id`.
 
 Destino de escritura:
 
-* `output_doc_id` (obligatorio en el request).
+* `output_doc_id`: ID del Google Doc de destino (**Nativo**). 
+* **Opcional**: Si se omite, el servicio invocará a `ForgeDocs` para crear uno nuevo automáticamente.
 
 ### `POST /webhook/chain`
 
@@ -156,7 +168,7 @@ Endpoint diseñado para **encadenamiento automático** de servicios. Recibe el p
 
 * **Fuente**: usa *solo una* (idealmente), pero si vienen varias aplica la precedencia indicada.
 * **Idioma**: controla selección de plantilla (si existe) o fallback (`es`/`en`).
-* **`output_doc_id`**: obligatorio en el request.
+* **`output_doc_id`**: opcional. Si falta, se crea uno nuevo vía ForgeDocs.
 * **`sheet_callback`**: opcional. Si se incluye, actualiza la Google Sheet al finalizar con el link del documento y el estado.
 
 ### Response — `TestimonyResponse`

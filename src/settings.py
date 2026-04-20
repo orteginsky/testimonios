@@ -45,7 +45,10 @@ class Settings(BaseModel):
     # --- Docs/Drive ---
     # Nota: NO hay creación de documentos. Solo escritura en un Doc provisto en el request.
     # Se mantiene opcionalmente el Shared Drive ID para llamadas con supportsAllDrives=True.
-    shared_drive_id: Optional[str] = os.getenv("SHARED_DRIVE_ID") or None
+    # --- Integración ForgeDocs ---
+    forgedocs_url: str = os.getenv("FORGEDOCS_URL", "https://forgedocs-357230337220.us-central1.run.app")
+    # Carpeta por defecto si el request no trae una (ej: Carpeta de Testimonios del Proyecto)
+    default_parent_folder_id: Optional[str] = os.getenv("DEFAULT_PARENT_FOLDER_ID")
 
     # --- Idioma/plantillas ---
     default_language: str = os.getenv("DEFAULT_LANGUAGE", "es")

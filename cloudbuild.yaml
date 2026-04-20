@@ -1,0 +1,37 @@
+steps:
+  # 1. Construir la imagen con tag BUILD_ID y latest
+  - name: 'gcr.io/cloud-builders/docker'
+    args: [
+      'build', 
+      '-t', 'us-central1-docker.pkg.dev/$PROJECT_ID/ai/testimonios:$BUILD_ID', 
+      '-t', 'us-central1-docker.pkg.dev/$PROJECT_ID/ai/testimonios:latest', 
+      '.'
+    ]
+
+  # 2. Subir la imagen al registro
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'us-central1-docker.pkg.dev/$PROJECT_ID/ai/testimonios', '--all-tags']
+
+  # 3. Desplegar en Cloud Run aplicando la configuración del Servicio
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - 'testimonios'
+      - '--image'
+      - 'us-central1-docker.pkg.dev/$PROJECT_ID/ai/testimonios:$BUILD_ID'
+      - '--region'
+      - 'us-central1'
+      - '--service-account'
+      - 'drive-sheets@ortega-473114.iam.gserviceaccount.com'
+      - '--allow-unauthenticated'
+      - '--set-env-vars'
+      - 'LLM_BACKEND=vertex,VERTEX_LOCATION=us-central1,VERTEX_MODEL=gemini-2.5-pro,DEFAULT_LANGUAGE=es,LOG_LEVEL=INFO,LOG_FORMAT=json,LOG_INCLUDE_PII=false,PROMPTS_DIR=/app/src/domain/prompts,GOOGLE_CLOUD_PROJECT=$PROJECT_ID'
+
+images:
+  - 'us-central1-docker.pkg.dev/$PROJECT_ID/ai/testimonios:$BUILD_ID'
+  - 'us-central1-docker.pkg.dev/$PROJECT_ID/ai/testimonios:latest'
+
+options:
+  logging: CLOUD_LOGGING_ONLY

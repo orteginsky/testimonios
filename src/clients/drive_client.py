@@ -42,25 +42,28 @@ def find_file_in_folder_by_name(
 def assert_sa_has_access(file_id: str, *, use_docs_api: bool = True) -> None:
     """
     Verifica que la Service Account actual pueda acceder al archivo.
-    - Por defecto usa Docs API (mejor para Google Docs) porque con 'drive.file'
-      Drive puede ocultar 403 como 404 por privacidad.
-    - Si el archivo no es un Google Doc (p. ej. PDF binario), usa use_docs_api=False para forzar Drive API.
-    Lanza HttpError si no hay acceso.
+    - Por defecto intenta Docs API si use_docs_api=True.
+    - Si falla porque el documento no es un Google Doc nativo, reintenta con Drive API.
     """
     if use_docs_api:
-        docs = build_docs_client()
         try:
+            docs = build_docs_client()
             docs.documents().get(documentId=file_id).execute()
             return
         except HttpError as e:
-            logger.error(f"[Docs Access] SA no puede acceder a {file_id}: {e}")
-            raise
+            # Si el error es 400 "This operation is not supported for this document",
+            # significa que es un archivo binario (ej. docx/pdf) y debemos usar Drive API.
+            if e.resp.status == 400 and "not supported" in str(e).lower():
+                logger.debug(f"ℹ️ {file_id} no es nativo de Google Docs. Reintentando con Drive API...")
+            else:
+                logger.error(f"[Docs Access] SA no puede acceder a {file_id}: {e}")
+                raise
 
     drive = build_drive_client()
     try:
         drive.files().get(
             fileId=file_id,
-            fields="id,name,mimeType,owners,permissions",
+            fields="id,name,mimeType",
             supportsAllDrives=True,
         ).execute()
     except HttpError as e:
@@ -104,6 +107,24 @@ def download_file_bytes(file_id: str) -> bytes:
     while not done:
         _, done = downloader.next_chunk()
     return fh.getvalue()
+
+def get_file_metadata(file_id: str) -> dict:
+    """Obtiene metadatos (id, name, mimeType) de un archivo en Drive."""
+    drive = build_drive_client()
+    return drive.files().get(
+        fileId=file_id, 
+        fields="id,name,mimeType", 
+        supportsAllDrives=True
+    ).execute()
+
+def export_doc_as_text(file_id: str) -> str:
+    """Exporta un Google Doc nativo a texto plano usando la Drive API."""
+    drive = build_drive_client()
+    content = drive.files().export(
+        fileId=file_id, 
+        mimeType='text/plain'
+    ).execute()
+    return content.decode('utf-8')
 
 
 logger = get_logger(__name__)

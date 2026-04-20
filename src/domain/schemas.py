@@ -49,7 +49,10 @@ class TestimonyRequest(BaseModel):
     transcription_link: Optional[HttpUrl] = Field(None)
 
     # Destino
-    output_doc_id: str = Field(..., description="ID del Google Doc de salida.")
+    output_doc_id: Optional[str] = Field(
+        None, 
+        description="ID del Google Doc de salida. Si se omite, se creará uno nuevo automáticamente."
+    )
 
     # Extras
     extra: Optional[Dict[str, Any]] = Field(default=None)
@@ -69,7 +72,8 @@ class TestimonyRequest(BaseModel):
     def _strip_and_require_output(cls, v: Optional[str]) -> Optional[str]:
         if v is None: return v
         s = str(v).strip()
-        if not s: raise ValueError("output_doc_id no puede ser vacío.")
+        # Si es un string vacío, lo tratamos como None para disparar la creación automática
+        if not s: return None
         return s
 
     @model_validator(mode="after")

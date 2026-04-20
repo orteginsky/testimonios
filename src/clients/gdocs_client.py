@@ -14,7 +14,9 @@ from http.client import IncompleteRead
 from googleapiclient.errors import HttpError
 from googleapiclient.http import HttpRequest
 from src.auth import build_docs_client
-from src.clients.drive_client import create_google_doc_in_folder  # ✅ nuevo import
+from src.clients.drive_client import (
+    create_google_doc_in_folder, get_file_metadata, download_file_bytes, export_doc_as_text
+)
 from src.logging_conf import get_logger
 
 logger = get_logger(__name__)
@@ -128,32 +130,49 @@ def _execute_with_retries(request: HttpRequest, *, max_retries: int = 6) -> Opti
 
 # --- LECTURA DE CONTENIDO (tipado + reintentos) ---
 
-def _iter_text(doc: Document) -> Iterator[str]:
-    """Itera sobre los `textRun.content` de todos los párrafos."""
-    body = cast(Body, doc.get("body", {}))
-    for elem in cast(List[StructuralElement], body.get("content", [])):
-        para = elem.get("paragraph")
-        if not para:
-            continue
-        for el in para.get("elements", []):
-            text_run = el.get("textRun")
-            if not text_run:
-                continue
-            content = text_run.get("content") or ""
-            if content:
-                yield content
+# --- LECTURA DE CONTENIDO (Smart Reader: Docs y Docx) ---
 
 def get_document_content(document_id: str) -> str:
     """
-    Devuelve el texto plano del Google Doc `document_id`.
-    Hace `documents.get` y concatena todos los `textRun.content`.
+    Detecta el tipo de archivo y extrae el texto plano.
+    Sustituye la lectura pesada de Docs API por Drive Export (más rápido)
+    y añade soporte para archivos .docx de Office.
     """
-    docs = build_docs_client()
-    get_req: HttpRequest = docs.documents().get(documentId=document_id)
-    doc_raw: Optional[Dict[str, Any]] = _execute_with_retries(get_req)
-    doc: Document = cast(Document, doc_raw)
-    # Concatena conservando saltos de línea que vienen en los textRuns
-    return "".join(_iter_text(doc))
+    try:
+        meta = get_file_metadata(document_id)
+        mime = meta.get("mimeType", "")
+        
+        # 1. Google Doc Nativo
+        if mime == "application/vnd.google-apps.document":
+            logger.info(f"📄 Leyendo Google Doc nativo: {meta.get('name')} ({document_id})")
+            return export_doc_as_text(document_id)
+            
+        # 2. Archivo Word (.docx)
+        elif mime == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+            logger.info(f"📂 Leyendo archivo Microsoft Word: {meta.get('name')} ({document_id})")
+            from io import BytesIO
+            from docx import Document
+            
+            bytes_data = download_file_bytes(document_id)
+            doc = Document(BytesIO(bytes_data))
+            # Extraer texto de párrafos
+            full_text = []
+            for para in doc.paragraphs:
+                if para.text.strip():
+                    full_text.append(para.text)
+            return "\n".join(full_text)
+            
+        # 3. Otros (intentar exportar directamente)
+        else:
+            logger.warning(f"⚠️ MimeType '{mime}' no es nativo Doc/Docx. Intentando exportación a texto...")
+            return export_doc_as_text(document_id)
+
+    except HttpError as e:
+        logger.error(f"❌ Error de Google API al leer {document_id}: {e}")
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error inesperado leyendo {document_id}: {e}")
+        raise
 
 # ========= Helpers tipados =========
 
