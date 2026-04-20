@@ -22,7 +22,7 @@ logger = get_logger(__name__)
 
 # --- SCOPES GLOBALES ---
 # --- SCOPES GLOBALES ---
-DRIVE_SCOPES = ("https://www.googleapis.com/auth/drive.readonly",)
+DRIVE_SCOPES = ("https://www.googleapis.com/auth/drive",)
 DOCS_SCOPES = ("https://www.googleapis.com/auth/documents",)
 SHEETS_SCOPES = ("https://www.googleapis.com/auth/spreadsheets",)
 VERTEX_SCOPE = ("https://www.googleapis.com/auth/cloud-platform",)

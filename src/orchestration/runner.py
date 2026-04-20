@@ -65,8 +65,9 @@ def run_testimony(req: TestimonyRequest) -> Dict[str, Any]:
             if sa_email:
                 logger.info(f"🔑 Incluyendo SA '{sa_email}' como editor en ForgeDocs.")
                 editors.append(sa_email)
-            else:
-                logger.warning("⚠️ No se pudo determinar el email de la SA. ForgeDocs podría no compartir el doc correctamente.")
+            
+            # 2. Otros editores configurados o del request
+            editors.extend(settings.extra_editor_emails)
             
             if req.extra and "client_email" in req.extra:
                 editors.append(req.extra["client_email"])

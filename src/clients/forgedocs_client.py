@@ -61,13 +61,24 @@ def create_doc_via_forgedocs(
             # En muchos despliegues internos de Cloud Run, si no hay IAP, basta con llamar a la URL.
             # Pero el README de ForgeDocs dice que espera un Bearer Token.
             
-            # Vamos a intentar obtener el token de servicio por defecto
-            import google.auth.transport.requests
-            import google.oauth2.id_token
-            
+            # Intentamos obtener un ID Token (requerido para Cloud Run privado)
             auth_req = google.auth.transport.requests.Request()
-            token = google.oauth2.id_token.fetch_id_token(auth_req, settings.forgedocs_url)
-            headers = {"Authorization": f"Bearer {token}"}
+            token = None
+            try:
+                # fetch_id_token solo funciona si estamos en GCP o con una SA que pueda firmar
+                token = google.oauth2.id_token.fetch_id_token(auth_req, settings.forgedocs_url)
+            except Exception as e:
+                logger.debug(f"ℹ️ No se pudo obtener ID Token ({e}). Intentando con Access Token...")
+                try:
+                    creds, _ = google.auth.default()
+                    creds.refresh(auth_req)
+                    token = creds.token
+                except Exception as e2:
+                    logger.warning(f"⚠️ Tampoco se pudo obtener Access Token: {e2}")
+
+            headers = {}
+            if token:
+                headers["Authorization"] = f"Bearer {token}"
             
             resp = client.post(url, json=payload, headers=headers)
             resp.raise_for_status()

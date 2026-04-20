@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Optional
 
 from dotenv import load_dotenv
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, field_validator, model_validator
 
 # Carga variables del .env (solo útil en local; en Cloud Run usa env vars del servicio)
 load_dotenv()
@@ -57,32 +57,36 @@ class Settings(BaseModel):
     )
     
     # --- Service Account / Auth ---
-    _service_account_email: str = os.getenv("SERVICE_ACCOUNT_EMAIL", "")
+    service_account_email: str = os.getenv("SERVICE_ACCOUNT_EMAIL", "")
+    
+    _extra_editors: str = os.getenv("EXTRA_EDITOR_EMAILS", "")
 
     @property
-    def service_account_email(self) -> str:
-        """Devuelve el email de la SA, intentando autodescubrimiento si no está definido."""
-        if self._service_account_email:
-            return self._service_account_email
-        
-        # Intento de autodescubrimiento en GCP (Metadata Server)
+    def extra_editor_emails(self) -> list[str]:
+        return [e.strip() for e in self._extra_editors.split(",") if e.strip()]
+
+    @model_validator(mode="after")
+    def _discover_sa_email(self) -> "Settings":
+        """Intenta autodescubrir el email de la SA si no se proveyó uno."""
+        if self.service_account_email:
+            return self
+
+        # Solo intentamos autodescubrimiento en entornos tipo GCP
+        # (Metadata Server disponible)
         try:
             import httpx
-            # Timeout corto para no bloquear si no estamos en GCP
+            # Timeout muy corto para evitar esperas en local
             resp = httpx.get(
                 "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/email",
                 headers={"Metadata-Flavor": "Google"},
-                timeout=1.0
+                timeout=0.5
             )
             if resp.status_code == 200:
-                discovered = resp.text.strip()
-                # Cacheamos el resultado en la instancia
-                self._service_account_email = discovered
-                return discovered
+                self.service_account_email = resp.text.strip()
         except Exception:
             pass
-        
-        return ""
+        return self
+
     # Solo LOCAL: ruta al JSON de la SA. En Cloud Run usa ADC (sin llaves).
     sa_credentials_path: Optional[str] = os.getenv("GOOGLE_APPLICATION_CREDENTIALS") or None
 
