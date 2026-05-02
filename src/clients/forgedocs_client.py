@@ -41,7 +41,7 @@ def create_doc_via_forgedocs(
         "editor_emails": editor_emails or [],
         "requesting_service": "testimonios-service",
         "parent_folder_id": parent_folder_id or settings.default_parent_folder_id,
-        "share_with_workspace": False
+        "share_with_workspace": True
     }
     
     logger.info(f"calling ForgeDocs to create doc: {document_name}")
